@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Django
+*.log
+db.sqlite3
+
+# Environment
+.venv/
+
+# IDE files
+.idea/
+
+# Custom project files to ignore
+/faiss_index_combined/
+/sessions/
