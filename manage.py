@@ -2,10 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-import asyncio
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCnOGFSGOaJCQDkUouvv_1Nh-clZ684vM4"
-asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'chatbot_project.settings')
@@ -18,7 +15,6 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
     execute_from_command_line(sys.argv)
-
 
 if __name__ == '__main__':
     main()

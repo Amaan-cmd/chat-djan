@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'chat',
+    #nakhre karra 'markdown_deux',
 ]
 
 MIDDLEWARE = [

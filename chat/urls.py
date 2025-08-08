@@ -8,4 +8,5 @@ urlpatterns = [
     # So when a user goes to '/chat/', this rule applies.
     # It runs the 'chat_view' function from your views.py file.
     path('', views.chat_view, name='chat_view'),
+    path('feedback/', views.feedback_view, name='feedback'),
 ]
