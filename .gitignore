@@ -1,6 +1,16 @@
-# Environment variables and API keys
+# SECURITY - API Keys & Environment Variables
 .env
 *.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Google API Keys
+*api_key*
+*API_KEY*
+*google_api*
+*GOOGLE_API*
 
 # Python
 __pycache__/
@@ -21,10 +31,18 @@ db.sqlite3
 db.sqlite3-journal
 media/
 
-# FAISS index (large files)
+# FAISS Vector Stores (large files + potentially sensitive)
 faiss_index_combined/
+faiss_gem_index/
 *.faiss
 *.pkl
+
+# Database files (may contain sensitive data)
+checkpoints.sqlite*
+db.sqlite3*
+*.sqlite
+*.sqlite3
+*.db
 
 # IDE
 .vscode/
@@ -39,3 +57,24 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Session files (may contain user data)
+sessions/
+*.session
+
+# Log files (may contain sensitive info)
+*.log
+debug.log
+
+# Backup files
+*_backup.py
+*backup*
+
+# Documents (your PDFs contain sensitive gov data)
+documents/
+*.pdf
+
+# Sample/test files
+*sample*.txt
+test_*.py
+quick_test.py

@@ -8,106 +8,79 @@ from langchain_core.output_parsers.json import JsonOutputParser
 from langgraph.graph import StateGraph, END
 
 from .chatbot_logic import chatbot_service
+from .cache_service import ChatCacheService
+from langchain.schema import Document
+
 class GraphState(TypedDict):
     question: str
     chat_history: List[BaseMessage]
     documents: List[Document]
     answer: str
     generation_source: str
-    is_ambiguous: bool
-    user_choice: str
+    is_correction: bool
 def retrieve_documents(state: GraphState):
     print("---NODE: RETRIEVE DOCUMENTS---")
     question = state["question"]
     chat_history = state["chat_history"]
     
-    # Multi-strategy search
-    all_docs = []
+    # Check cache first
+    cached_docs = ChatCacheService.get_cached_documents(question)
+    if cached_docs:
+        print(f"---CACHE HIT: {len(cached_docs)} documents---")
+        # Reconstruct Document objects
+        documents = [Document(page_content=doc["content"], metadata=doc["metadata"]) for doc in cached_docs]
+        return {"documents": documents}
     
-    # Direct search
-    direct_docs = chatbot_service.retriever.invoke(question)
-    all_docs.extend(direct_docs)
+    # Cache miss - retrieve from source
+    documents = chatbot_service.history_aware_retriever.invoke(
+        {"input": question, "chat_history": chat_history}
+    )
     
-    # Term-based search
-    key_terms = [word.lower() for word in question.split() if len(word) > 3]
-    for term in key_terms:
-        term_docs = chatbot_service.retriever.invoke(term)
-        all_docs.extend(term_docs)
-    
-    # Remove duplicates
-    seen_ids = set()
-    unique_docs = []
-    for doc in all_docs:
-        doc_id = getattr(doc, 'id', str(hash(doc.page_content[:100])))
-        if doc_id not in seen_ids:
-            seen_ids.add(doc_id)
-            unique_docs.append(doc)
-    
-    final_docs = unique_docs[:5]
-    print(f"---RETRIEVED: {len(final_docs)} documents---")
-    
-    return {"documents": final_docs}
+    # Cache the results
+    ChatCacheService.cache_documents(question, documents)
+    print(f"---RETRIEVED: {len(documents)} documents (cached)---")
+    return {"documents": documents}
 
 def grade_documents(state: GraphState):
     print("---NODE: GRADE DOCUMENTS---")
+    question = state["question"]
     documents = state["documents"]
-    return {"documents": documents[:3]}  # Take top 3
-
-def detect_ambiguity(state: GraphState):
-    print("---NODE: DETECT AMBIGUITY---")
-    question = state["question"].lower()
-    documents = state.get("documents", [])
+    prompt = ChatPromptTemplate.from_template(
+        """You are a grader assessing if a document is relevant to a Terraria Calamity mod question.
+        A document is relevant if it contains specific information about Calamity mod content (weapons, bosses, items, mechanics, etc.).
+        It is NOT relevant if it only mentions general Terraria content or unrelated topics.
+        Give a binary JSON output with a single key 'is_relevant' and a value of 'yes' or 'no'.
+        Document: {document_content}\nUser Question: {question}"""
+    )
+    grader_chain = prompt | chatbot_service.llm | JsonOutputParser()
     
-    print(f"---QUESTION: '{question}'---")
-    print(f"---DOCUMENTS FOUND: {len(documents)}---")
-    print(f"---USER CHOICE: {state.get('user_choice', 'None')}---")
+    if not documents:
+        return {"documents": []}
     
-    # Skip if user already made a choice
-    if state.get("user_choice"):
-        print("---USER ALREADY CHOSE, SKIPPING AMBIGUITY---")
-        return {"is_ambiguous": False}
+    relevant_docs = []
+    relevant_count = 0
+    max_docs = min(len(documents), 3)
     
-    # Ambiguous terms that could mean Calamity or general concepts
-    ambiguous_terms = ["abyss", "armor", "weapons", "boss", "biome"]
+    for i, doc in enumerate(documents[:max_docs]):
+        try:
+            content = doc.page_content[:800] if doc.page_content else ""
+            result = grader_chain.invoke({"question": question, "document_content": content})
+            if result.get("is_relevant") == "yes":
+                relevant_docs.append(doc)
+                relevant_count += 1
+        except Exception as e:
+            print(f"---ERROR IN GRADER for doc {i}: {str(e)[:100]}---")
+            continue
     
-    # Check if question contains ambiguous terms AND we have documents
-    has_ambiguous_term = any(term in question for term in ambiguous_terms)
-    has_calamity_docs = len(documents) > 0
-    
-    print(f"---HAS AMBIGUOUS TERM: {has_ambiguous_term}---")
-    print(f"---HAS CALAMITY DOCS: {has_calamity_docs}---")
-    
-    if has_ambiguous_term and has_calamity_docs:
-        found_term = next((term for term in ambiguous_terms if term in question), "this topic")
-        
-        disambiguation_prompt = f"I found information about '{found_term}'. Which would you prefer:\n\n🎮 Calamity mod {found_term}\n📚 General {found_term} information\n\nPlease click your choice:"
-        
-        print(f"---AMBIGUITY DETECTED FOR: {found_term}---")
-        return {
-            "is_ambiguous": True,
-            "answer": disambiguation_prompt,
-            "generation_source": "disambiguation"
-        }
-    else:
-        print("---NO AMBIGUITY DETECTED---")
-        return {"is_ambiguous": False}
-
+    print(f"---GRADE: {relevant_count} out of {max_docs} documents are relevant---")
+    return {"documents": relevant_docs if relevant_count > 0 else []}
 
 def generate_rag_answer(state: GraphState):
     print("---NODE: GENERATE RAG ANSWER---")
     question = state["question"]
     chat_history = state["chat_history"]
     documents = state["documents"]
-    user_choice = state.get("user_choice", "")
-    
-    # If user chose Calamity after disambiguation, enhance the question context
-    if user_choice == "calamity":
-        enhanced_question = f"Tell me about the Calamity mod {question.lower().replace('what is', '').replace('tell me about', '').strip()}"
-        print(f"---ENHANCED QUESTION: {enhanced_question}---")
-        answer = chatbot_service.strict_Youtube_chain.invoke({"input": enhanced_question, "chat_history": chat_history, "context": documents})
-    else:
-        answer = chatbot_service.strict_Youtube_chain.invoke({"input": question, "chat_history": chat_history, "context": documents})
-    
+    answer = chatbot_service.strict_Youtube_chain.invoke({"input": question, "chat_history": chat_history, "context": documents})
     return {"answer": answer, "generation_source": "rag"}
 
 def generate_general_answer(state: GraphState):
@@ -116,29 +89,23 @@ def generate_general_answer(state: GraphState):
     chat_history = state["chat_history"]
     general_response = chatbot_service.general_knowledge_chain.invoke({"input": question, "chat_history": chat_history})
     return {"answer": general_response.content, "generation_source": "general"}
-def decide_after_ambiguity(state: GraphState):
-    print("---CONDITIONAL EDGE: AFTER AMBIGUITY---")
+
+def decide_generation_path(state: GraphState):
+    print("---CONDITIONAL EDGE: DECIDE PATH---")
     
-    # If disambiguation needed, stop here
-    if state.get("is_ambiguous", False):
-        print("---DECISION: Ambiguous, showing choices to user---")
-        return "END"
+    if state.get("is_correction", False):
+        if state.get("documents", []):
+            print("---DECISION: Correction detected, routing to General instead of RAG.---")
+            return "generate_general"
+        else:
+            print("---DECISION: Correction detected, routing to RAG instead of General.---")
+            return "generate_rag"
     
-    # Route based on user choice or documents
-    user_choice = state.get("user_choice", "")
-    if user_choice == "calamity":
-        print("---DECISION: User chose Calamity, routing to RAG with context---")
-        return "generate_rag"
-    elif user_choice == "general":
-        print("---DECISION: User chose General, routing to General---")
-        return "generate_general"
-    
-    # Normal routing based on documents
     if state.get("documents", []):
-        print("---DECISION: Documents found, routing to RAG---")
+        print("---DECISION: Graded as relevant, routing to RAG.---")
         return "generate_rag"
     else:
-        print("---DECISION: No documents, routing to General---")
+        print("---DECISION: Graded as not relevant, routing to General.---")
         return "generate_general"
 
 
@@ -148,20 +115,17 @@ def create_graph(checkpointer):
 
     workflow.add_node("retrieve", retrieve_documents)
     workflow.add_node("grade_documents", grade_documents)
-    workflow.add_node("detect_ambiguity", detect_ambiguity)
     workflow.add_node("generate_rag", generate_rag_answer)
     workflow.add_node("generate_general", generate_general_answer)
 
     workflow.set_entry_point("retrieve")
     workflow.add_edge("retrieve", "grade_documents")
-    workflow.add_edge("grade_documents", "detect_ambiguity")
     workflow.add_conditional_edges(
-        "detect_ambiguity",
-        decide_after_ambiguity,
-        {"END": END, "generate_rag": "generate_rag", "generate_general": "generate_general"},
+        "grade_documents",
+        decide_generation_path,
+        {"generate_rag": "generate_rag", "generate_general": "generate_general"},
     )
     workflow.add_edge("generate_rag", END)
     workflow.add_edge("generate_general", END)
 
-    # Compile the graph WITH the checkpointer
     return workflow.compile(checkpointer=checkpointer)

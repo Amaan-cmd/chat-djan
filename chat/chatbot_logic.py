@@ -16,9 +16,26 @@ VECTOR_STORE_PATH = "faiss_index_combined"
 
 
 class ChatbotService:
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ChatbotService, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        if self._initialized:
+            return
+            
         print("Initializing ChatbotService and loading components...")
         api_key = os.getenv("GOOGLE_API_KEY")
+        
+        # Validate API key
+        if not api_key or api_key == "PASTE_YOUR_NEW_API_KEY_HERE":
+            raise ValueError("Please set a valid GOOGLE_API_KEY in your .env file")
+            
+        self._initialized = True
 
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-flash",

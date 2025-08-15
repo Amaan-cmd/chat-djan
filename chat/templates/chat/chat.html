@@ -81,12 +81,29 @@
             cursor: pointer;
             font-size: 16px;
         }
+        
+        /* --- Error Message Styling --- */
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #f5c6cb;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
 
     <div id="app-container">
         <h1>Amaan's Chatbot</h1>
+        {% if error %}
+            <div class="error-message">
+                ⚠️ {{ error }}
+            </div>
+        {% endif %}
+        
         <div id="chat-container">
             {% for message in chat_history %}
                 <div class="message {% if message.role == 'user' %}user-message{% else %}ai-message{% endif %}">

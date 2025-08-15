@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Async Chat Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chat-container { border: 1px solid #ddd; height: 400px; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
+        #input-container { display: flex; gap: 10px; }
+        #question { flex: 1; padding: 10px; }
+        #send-btn { padding: 10px 20px; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .user { background: #e3f2fd; margin-left: 20%; }
+        .ai { background: #f3e5f5; margin-right: 20%; }
+        .status { background: #fff3e0; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Async Chat Demo</h1>
+    <div id="chat-container"></div>
+    <div id="input-container">
+        <input type="text" id="question" placeholder="Ask something..." />
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        let currentTaskId = null;
+
+        function addMessage(content, type) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.textContent = content;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('question');
+            const question = input.value.trim();
+            if (!question) return;
+
+            addMessage(question, 'user');
+            input.value = '';
+
+            // Show immediate status
+            addMessage('Processing...', 'status');
+
+            fetch('/chat/async/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({question: question})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    // Cached response - instant!
+                    document.querySelector('.status:last-child').textContent = data.answer;
+                    document.querySelector('.status:last-child').className = 'message ai';
+                } else if (data.status === 'processing') {
+                    currentTaskId = data.task_id;
+                    checkStatus();
+                }
+            });
+        }
+
+        function checkStatus() {
+            if (!currentTaskId) return;
+
+            fetch(`/chat/status/${currentTaskId}/`)
+            .then(response => response.json())
+            .then(data => {
+                const statusElement = document.querySelector('.status:last-child');
+                
+                if (data.status === 'completed') {
+                    statusElement.textContent = data.answer;
+                    statusElement.className = 'message ai';
+                    currentTaskId = null;
+                } else if (data.status === 'processing') {
+                    statusElement.textContent = data.progress || 'Processing...';
+                    setTimeout(checkStatus, 1000); // Check every second
+                } else if (data.status === 'error') {
+                    statusElement.textContent = 'Error: ' + data.error;
+                    statusElement.className = 'message ai';
+                    currentTaskId = null;
+                }
+            });
+        }
+
+        // Add CSRF token
+        document.addEventListener('DOMContentLoaded', function() {
+            const csrfToken = '{{ csrf_token }}';
+            const meta = document.createElement('meta');
+            meta.name = 'csrf-token';
+            meta.content = csrfToken;
+            document.head.appendChild(meta);
+        });
+    </script>
+    {% csrf_token %}
+</body>
+</html>
