@@ -30,7 +30,7 @@ class AsyncChatProcessor:
             
             try:
                 from .chatbot_graph import create_graph
-                from .chatbot_logic import memory_saver
+                from .chatbot_logic import chatbot_service, memory_saver
                 from langchain_core.messages import HumanMessage, AIMessage
                 
                 # Update progress

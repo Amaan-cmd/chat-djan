@@ -8,12 +8,15 @@ from django.http import JsonResponse
 from .models import ChatFeedback
 from langchain_core.messages import HumanMessage, AIMessage
 from .chatbot_graph import create_graph
-from .chatbot_logic import memory_saver
-from .cache_service import ChatCacheService
+from .chatbot_service import get_chatbot_service, memory_saver
+
+# Force fresh instance
+chatbot_service = get_chatbot_service()
 from .async_chat import AsyncChatProcessor
 import re
 import json
 
+# Create fresh graph with fresh service
 chatbot_app = create_graph(checkpointer=memory_saver)
 
 def chat_view(request):
@@ -43,7 +46,7 @@ def chat_view(request):
                 langchain_chat_history.append(AIMessage(content=chat['content']))
         
         # Check if this is a disambiguation choice
-        if question.lower() in ['calamity', 'general']:
+        if question.lower() in ['calamity', 'gem', 'general']:
             original_question = request.session.get('original_question', 'unknown')
             initial_state = {
                 "question": original_question,
@@ -58,40 +61,31 @@ def chat_view(request):
                 "user_choice": ""  # Clear any previous choice
             }
 
-        # Check cache for quick responses
-        cached_response = ChatCacheService.get_cached_response(question, langchain_chat_history)
-        if cached_response:
-            print("---CACHE HIT: Using cached response---")
-            answer = cached_response
-        else:
-            config = {"configurable": {"thread_id": request.session.session_key}}
+        config = {"configurable": {"thread_id": request.session.session_key}}
+        
+        try:
+            # Handle workflow that might end with disambiguation
+            final_state = None
+            for state in chatbot_app.stream(initial_state, config=config):
+                final_state = state
             
-            try:
-                # Handle workflow that might end with disambiguation
-                final_state = None
-                for state in chatbot_app.stream(initial_state, config=config):
-                    final_state = state
+            if final_state and isinstance(final_state, dict) and len(final_state) == 1:
+                final_state = list(final_state.values())[0]
+            
+            answer = final_state.get('answer', 'Sorry, I encountered an error.') if final_state else 'No response'
+            
+            # Store original question if disambiguation triggered
+            if final_state and final_state.get('generation_source') == 'disambiguation':
+                request.session['original_question'] = question
                 
-                if final_state and isinstance(final_state, dict) and len(final_state) == 1:
-                    final_state = list(final_state.values())[0]
-                
-                answer = final_state.get('answer', 'Sorry, I encountered an error.') if final_state else 'No response'
-                
-                # Store original question if disambiguation triggered
-                if final_state and final_state.get('generation_source') == 'disambiguation':
-                    request.session['original_question'] = question
-                
-                # Cache the response for future use
-                ChatCacheService.cache_response(question, langchain_chat_history, answer)
-                    
-            except Exception as e:
-                logger.error(f"Chat processing error for question '{question[:50]}...': {str(e)}")
-                
-                # Check for API key issues
-                if "API_KEY_INVALID" in str(e) or "API key not valid" in str(e):
-                    answer = "Configuration error: Please contact the administrator to update the API key."
-                else:
-                    answer = "I'm experiencing technical difficulties. Please try again in a moment."
+        except Exception as e:
+            logger.error(f"Chat processing error for question '{question[:50]}...': {str(e)}")
+            
+            # Check for API key issues
+            if "API_KEY_INVALID" in str(e) or "API key not valid" in str(e):
+                answer = "Configuration error: Please contact the administrator to update the API key."
+            else:
+                answer = "I'm experiencing technical difficulties. Please try again in a moment."
 
         # Add current exchange to chat history
         existing_history = request.session.get('chat_history', [])
@@ -142,17 +136,7 @@ def async_chat_view(request):
         if not question or len(question) < 3 or len(question) > 1000:
             return JsonResponse({'status': 'error', 'message': 'Invalid question'})
         
-        # Check cache first
         chat_history = request.session.get('chat_history', [])
-        cached_response = ChatCacheService.get_cached_response(question, chat_history)
-        if cached_response:
-            with open(log_file, 'a') as f:
-                f.write(f"\n=== INSTANT CACHE HIT ===\n")
-                f.write(f"Question: {question[:50]}...\n")
-                f.write(f"Cached response length: {len(cached_response)} characters\n")
-                f.write(f"Response time: <0.01s (INSTANT!)\n")
-                f.write(f"=== CACHE HIT COMPLETE ===\n\n")
-            return JsonResponse({'status': 'completed', 'answer': cached_response})
         
         # Start async processing
         with open(log_file, 'a') as f:
