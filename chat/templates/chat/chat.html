@@ -104,6 +104,13 @@
             </div>
         {% endif %}
         
+        {% if active_doc %}
+            <div style="margin: 8px 0 12px 0; font-size: 14px; color: #555;">
+                Active bid: <strong>{{ active_doc }}</strong>
+                <span style="margin-left:8px; color:#888;">(type 'clear doc' to unset)</span>
+            </div>
+        {% endif %}
+
         <div id="chat-container">
             {% for message in chat_history %}
                 <div class="message {% if message.role == 'user' %}user-message{% else %}ai-message{% endif %}">

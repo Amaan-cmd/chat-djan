@@ -17,7 +17,14 @@ class QuestionClassifier:
             return "gem"
         
         # Check for GeM-related terms
-        gem_indicators = ['bidding', 'bid', 'tender', 'procurement', 'gem', 'ministry', 'organisation', 'item category', 'documents']
+        gem_indicators = [
+            'bidding', 'bid', 'tender', 'procurement', 'gem', 'ministry', 'organisation', 
+            'item category', 'documents', 'fire beater', 'specification', 'quantity', 
+            'delivery', 'eligibility', 'table', 'item details', 'technical', 'requirement',
+            'department', 'defence', 'military',
+            # Added to catch consignee questions
+            'consignee', 'reporting officer', 'reporting/officer', 'consignee reporting'
+        ]
         if any(indicator in question.lower() for indicator in gem_indicators):
             print(f"GeM-related question detected - classifying as gem")
             return "gem"
@@ -65,7 +72,14 @@ class QuestionClassifier:
         """Fallback keyword classification"""
         question_lower = question.lower()
         
-        gem_keywords = ['gem', 'procurement', 'bidding', 'tender', 'ministry', 'government', 'bid', 'contract', 'purchase', 'supplier', 'vendor', 'amc', 'maintenance', 'defence', 'department', 'proposal']
+        gem_keywords = [
+            'gem', 'procurement', 'bidding', 'tender', 'ministry', 'government', 'bid', 
+            'contract', 'purchase', 'supplier', 'vendor', 'amc', 'maintenance', 'defence', 
+            'department', 'proposal', 'fire beater', 'specification', 'quantity', 
+            'delivery', 'eligibility', 'table', 'item', 'technical', 'requirement',
+            # Added to catch consignee questions
+            'consignee', 'reporting officer', 'reporting/officer', 'consignee reporting'
+        ]
         calamity_keywords = ['calamity', 'terraria', 'boss', 'weapon', 'item', 'mod', 'yharon', 'supreme', 'devourer', 'providence', 'astrum']
         
         if any(keyword in question_lower for keyword in gem_keywords):

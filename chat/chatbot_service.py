@@ -10,14 +10,17 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever
 from langchain.chains.combine_documents import create_stuff_documents_chain
+from typing import Optional
 
 from .question_classifier import QuestionClassifier
 from .gem_processor import GemProcessor
+from .scoped_retriever import ScopedRetriever
 
 load_dotenv(override=True)
 
 CALAMITY_VECTOR_STORE_PATH = "faiss_index_combined"
-GEM_VECTOR_STORE_PATH = "faiss_gem_index"
+# New clean GeM index without Hindi text
+GEM_VECTOR_STORE_PATH = "faiss_gem_clean"
 
 class ChatbotService:
     _instance = None
@@ -74,9 +77,9 @@ class ChatbotService:
         """Load both Calamity and GeM vector stores"""
         try:
             calamity_db = FAISS.load_local(
-                CALAMITY_VECTOR_STORE_PATH, 
-                self.embeddings, 
-                allow_dangerous_deserialization=True
+                CALAMITY_VECTOR_STORE_PATH,
+                self.embeddings,
+                allow_dangerous_deserialization=True,
             )
             self.calamity_retriever = calamity_db.as_retriever(search_kwargs={"k": 5})
             print("SUCCESS: Calamity mod vector store loaded")
@@ -85,17 +88,32 @@ class ChatbotService:
             self.calamity_retriever = None
 
         try:
+            # Prefer new semantic GeM index; fallback to prior names if present
+            load_path = None
+            if os.path.exists(GEM_VECTOR_STORE_PATH):
+                load_path = GEM_VECTOR_STORE_PATH
+            elif os.path.exists("faiss_gem_index"):
+                load_path = "faiss_gem_index"
+            elif os.path.exists("faiss_hybrid_index"):
+                load_path = "faiss_hybrid_index"
+            if not load_path:
+                raise FileNotFoundError("No GeM vector store found")
+
             self.gem_db = FAISS.load_local(
-                GEM_VECTOR_STORE_PATH, 
-                self.embeddings, 
-                allow_dangerous_deserialization=True
+                load_path,
+                self.embeddings,
+                allow_dangerous_deserialization=True,
             )
+            print(f"SUCCESS: GeM vector store loaded ({load_path})")
+
             self.gem_retriever = self.gem_db.as_retriever(search_kwargs={"k": 5})
-            print("SUCCESS: GeM procurement vector store loaded")
+            # Initialize scoped retriever for GeM
+            self._scoped = ScopedRetriever(self.gem_db)
         except Exception as e:
             print(f"WARNING: Could not load GeM vector store: {e}")
             self.gem_retriever = None
             self.gem_db = None
+            self._scoped = None
 
     def _setup_history_aware_retriever(self, retriever):
         """Setup history-aware retriever for any vector store"""
@@ -141,8 +159,45 @@ class ChatbotService:
         return self.classifier.classify_question_type(question)
     
     def smart_gem_search(self, question: str, k: int = 8):
-        """Smart GeM search using the processor"""
-        return self.gem_processor.smart_gem_search(question, k)
+        """Enhanced GeM search with hybrid content support"""
+        if not self.gem_db:
+            return []
+        
+        try:
+            # Get semantic matches from hybrid index
+            docs = self.gem_db.similarity_search(question, k=k)
+            
+            # Prioritize table content for structured queries
+            table_docs = [doc for doc in docs if doc.metadata.get('source') == 'table']
+            text_docs = [doc for doc in docs if doc.metadata.get('source') == 'text']
+            
+            # For structured queries, prefer table content
+            if any(word in question.lower() for word in ['table', 'list', 'details', 'specification', 'requirement']):
+                prioritized_docs = table_docs + text_docs
+            else:
+                prioritized_docs = text_docs + table_docs
+            
+            # Return top k results
+            return prioritized_docs[:k]
+            
+        except Exception as e:
+            print(f"Error in smart GeM search: {e}")
+            return []
+
+    def scoped_gem_search(self, question: str, pdf_id: Optional[str], k: int = 12):
+        """Delegates to ScopedRetriever with MMR + structured-first ordering."""
+        if not getattr(self, "_scoped", None):
+            return []
+        return self._scoped.search(question, pdf_id=pdf_id, k=k, prefer_structured=True)
+
+    @staticmethod
+    def parse_active_doc_from_text(text: str) -> Optional[str]:
+        """Extract a 7-8 digit id from free text, if present."""
+        import re
+        if not text:
+            return None
+        m = re.search(r"\b(\d{7,8})\b", text)
+        return m.group(1) if m else None
     
     def hybrid_gem_extraction(self, question: str, doc_number: str):
         """Hybrid extraction using the processor"""
@@ -153,7 +208,22 @@ def get_chatbot_service():
     """Get fresh chatbot service instance"""
     return ChatbotService()
 
-# Create service instance
+# Database connection manager for memory saver
+class DatabaseManager:
+    _conn = None
+    
+    @classmethod
+    def get_connection(cls):
+        if cls._conn is None:
+            cls._conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
+        return cls._conn
+    
+    @classmethod
+    def close_connection(cls):
+        if cls._conn:
+            cls._conn.close()
+            cls._conn = None
+
+# Create service instance and memory saver
 chatbot_service = get_chatbot_service()
-conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
-memory_saver = SqliteSaver(conn=conn)
+memory_saver = SqliteSaver(conn=DatabaseManager.get_connection())

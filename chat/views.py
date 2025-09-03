@@ -1,18 +1,23 @@
 # chat/views.py
 
 import logging
+import os
+import sys
+import json
+import re
 from django.shortcuts import render
-
-logger = logging.getLogger(__name__)
 from django.http import JsonResponse
-from .models import ChatFeedback
 from langchain_core.messages import HumanMessage, AIMessage
+
+from .models import ChatFeedback
 from .chatbot_graph import create_graph
 from .chatbot_service import get_chatbot_service, memory_saver
+from .async_chat import AsyncChatProcessor
+
+logger = logging.getLogger(__name__)
 
 # Force fresh instance
 chatbot_service = get_chatbot_service()
-from .async_chat import AsyncChatProcessor
 import re
 import json
 
@@ -21,6 +26,7 @@ chatbot_app = create_graph(checkpointer=memory_saver)
 
 def chat_view(request):
     chat_history = request.session.get('chat_history', [])
+    active_doc = request.session.get('active_doc', '')
 
     if request.method == 'POST':
         question = request.POST.get('question', '').strip()
@@ -45,20 +51,39 @@ def chat_view(request):
             elif chat['role'] == 'ai':
                 langchain_chat_history.append(AIMessage(content=chat['content']))
         
-        # Check if this is a disambiguation choice
+        # Check if this is a disambiguation choice or active_doc control
         if question.lower() in ['calamity', 'gem', 'general']:
             original_question = request.session.get('original_question', 'unknown')
             initial_state = {
                 "question": original_question,
                 "chat_history": langchain_chat_history,
-                "user_choice": question.lower()
+                "user_choice": question.lower(),
+                "active_doc": active_doc
             }
             request.session['original_question'] = ''
         else:
+            # Commands: set or clear active doc
+            qlower = question.strip().lower()
+            if qlower.startswith('set doc ') or qlower.startswith('set bid '):
+                m = re.search(r"\b(\d{7,8})\b", question)
+                if m:
+                    active_doc = m.group(1)
+                    request.session['active_doc'] = active_doc
+            elif qlower in ['clear doc', 'clear bid', 'reset doc', 'reset bid']:
+                active_doc = ''
+                request.session['active_doc'] = ''
+            else:
+                # Maintain / set active_doc from free text if user provides an id
+                set_active = re.search(r'\b(\d{7,8})\b', question)
+                if set_active:
+                    active_doc = set_active.group(1)
+                    request.session['active_doc'] = active_doc
+
             initial_state = {
                 "question": question,
                 "chat_history": langchain_chat_history,
-                "user_choice": ""  # Clear any previous choice
+                "user_choice": "",  # Clear any previous choice
+                "active_doc": active_doc
             }
 
         config = {"configurable": {"thread_id": request.session.session_key}}
@@ -97,7 +122,7 @@ def chat_view(request):
     request.session['chat_history'] = chat_history
     # Show only last 3 exchanges (6 messages) to user
     display_history = chat_history[-6:] if len(chat_history) > 6 else chat_history
-    return render(request, 'chat/chat.html', {'chat_history': display_history})
+    return render(request, 'chat/chat.html', {'chat_history': display_history, 'active_doc': request.session.get('active_doc', '')})
 
 def feedback_view(request):
     if request.method == 'POST':

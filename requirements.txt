@@ -8,3 +8,7 @@ sqlite-utils
 langgraph.checkpoint.sqlite
 langchain_community
 beautifulsoup4
+pdfplumber
+# Camelot is optional; requires Ghostscript on Windows. Uncomment if desired.
+# camelot-py[cv]
+openai>=1.0.0
