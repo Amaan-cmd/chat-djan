@@ -34,8 +34,11 @@ media/
 # FAISS Vector Stores (large files + potentially sensitive)
 faiss_index_combined/
 faiss_gem_index/
+faiss_gem_semantic/
+faiss_gem_clean/
 *.faiss
 *.pkl
+*.index
 
 # Database files (may contain sensitive data)
 checkpoints.sqlite*
@@ -70,11 +73,31 @@ debug.log
 *_backup.py
 *backup*
 
-# Documents (your PDFs contain sensitive gov data)
+# Documents (CONFIDENTIAL - GeM government documents)
 documents/
 *.pdf
+# Specifically exclude GeM bidding documents
+GeM-Bidding-*.pdf
+*bidding*.pdf
+*procurement*.pdf
 
-# Sample/test files
+# Sample/test files & development artifacts
 *sample*.txt
 test_*.py
 quick_test.py
+analyze_*.py
+debug_*.py
+*_test.py
+*_debug.py
+
+# Additional security exclusions
+# Any files that might contain API responses or cached data
+*_cache/
+*cache*
+*.cache
+# Any configuration files that might contain secrets
+config.json
+secrets.json
+*secret*
+*credential*
+*token*
