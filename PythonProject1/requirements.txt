@@ -1,0 +1,10 @@
+django
+langchain
+langgraph
+langchain-google-genai
+python-dotenv
+faiss-cpu
+sqlite-utils
+langgraph.checkpoint.sqlite
+langchain_community
+beautifulsoup4

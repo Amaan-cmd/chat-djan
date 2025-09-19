@@ -1,0 +1,88 @@
+# Environment and API Keys
+.env
+.env.local
+.env.production
+*.env
+
+# Vector Stores and Embeddings (large files)
+faiss_*
+*.faiss
+*.pkl
+checkpoints.sqlite*
+*.sqlite-shm
+*.sqlite-wal
+
+# PDF Documents (sensitive data)
+*.pdf
+gem_downloads/
+documents/
+pdfs/
+
+# Database files
+*.db
+*.sqlite3
+db.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django
+*.log
+local_settings.py
+media/
+staticfiles/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Logs
+logs/
+*.log
+
+# Node modules
+node_modules/
+
+# Image files (drone project)
+*.JPG
+*.jpg
+*.jpeg
+*.png
+*.gif

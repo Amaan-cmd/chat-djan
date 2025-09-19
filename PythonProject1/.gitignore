@@ -1,0 +1,103 @@
+# SECURITY - API Keys & Environment Variables
+.env
+*.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Google API Keys
+*api_key*
+*API_KEY*
+*google_api*
+*GOOGLE_API*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+
+# FAISS Vector Stores (large files + potentially sensitive)
+faiss_index_combined/
+faiss_gem_index/
+faiss_gem_semantic/
+faiss_gem_clean/
+*.faiss
+*.pkl
+*.index
+
+# Database files (may contain sensitive data)
+checkpoints.sqlite*
+db.sqlite3*
+*.sqlite
+*.sqlite3
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Session files (may contain user data)
+sessions/
+*.session
+
+# Log files (may contain sensitive info)
+*.log
+debug.log
+
+# Backup files
+*_backup.py
+*backup*
+
+# Documents (CONFIDENTIAL - GeM government documents)
+documents/
+*.pdf
+# Specifically exclude GeM bidding documents
+GeM-Bidding-*.pdf
+*bidding*.pdf
+*procurement*.pdf
+
+# Sample/test files & development artifacts
+*sample*.txt
+test_*.py
+quick_test.py
+analyze_*.py
+debug_*.py
+*_test.py
+*_debug.py
+
+# Additional security exclusions
+# Any files that might contain API responses or cached data
+*_cache/
+*cache*
+*.cache
+# Any configuration files that might contain secrets
+config.json
+secrets.json
+*secret*
+*credential*
+*token*
