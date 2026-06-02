@@ -2,7 +2,7 @@
 GeM Document Processing Module
 """
 import re
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 class GemProcessor:
     def __init__(self, gem_db, llm):
