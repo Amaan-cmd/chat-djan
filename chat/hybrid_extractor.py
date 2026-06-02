@@ -1,7 +1,7 @@
 import pdfplumber
 import pandas as pd
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
 import re
 import os
 

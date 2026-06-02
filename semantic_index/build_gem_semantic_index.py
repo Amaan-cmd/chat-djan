@@ -30,7 +30,7 @@ except Exception:
     _HAS_CAMELOT = False
 
 from langchain_community.vectorstores import FAISS
-from langchain.schema import Document
+from langchain_core.documents import Document
 from dotenv import load_dotenv
 
 # Load env so GOOGLE_API_KEY is available without new env setup

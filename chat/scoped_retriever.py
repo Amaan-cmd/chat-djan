@@ -4,7 +4,7 @@ ScopedRetriever: Centralized retrieval with pdf_id scoping and structured-first 
 from collections import Counter
 import re
 from typing import List, Optional
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 
 class ScopedRetriever:

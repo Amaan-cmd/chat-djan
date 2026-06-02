@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.schema import Document
+from langchain_core.documents import Document
 from dotenv import load_dotenv
 
 # Encoding fix

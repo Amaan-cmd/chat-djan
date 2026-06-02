@@ -7,7 +7,7 @@ import re
 from typing import List, Dict
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 class GeMPDFProcessor:
     def __init__(self, documents_dir: str):
